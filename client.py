@@ -14,6 +14,11 @@ from claude_code_sdk.types import HookMatcher
 
 from security import bash_security_hook
 
+# Increase MCP message buffer size to handle large screenshots (default is 1MB)
+# Some pages with photos generate base64-encoded screenshots that exceed the limit
+import claude_code_sdk._internal.transport.subprocess_cli as _transport
+_transport._MAX_BUFFER_SIZE = 10 * 1024 * 1024  # 10MB
+
 
 # Puppeteer MCP tools for browser automation
 PUPPETEER_TOOLS = [

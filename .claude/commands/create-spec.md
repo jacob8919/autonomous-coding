@@ -95,17 +95,31 @@ Options:
 
 ## Phase 3: Technology Preferences
 
-**For Quick Mode users**, also ask about tech preferences (can combine in same AskUserQuestion):
+**For Quick Mode users**, ask about tech stack preferences using AskUserQuestion:
 
 ```
-Question: "Any technology preferences, or should I choose sensible defaults?"
+Question: "What technology stack would you like to use?"
 Header: "Tech Stack"
 Options:
-  - Label: "Use defaults (Recommended)"
-    Description: "React, Node.js, SQLite - solid choices for most apps"
-  - Label: "I have preferences"
+  - Label: "Node.js + React (Default)"
+    Description: "React frontend, Node.js/Express backend, SQLite database"
+  - Label: "Laravel + React"
+    Description: "PHP Laravel backend with React/Inertia frontend"
+  - Label: "Laravel + Vue"
+    Description: "PHP Laravel backend with Vue/Inertia frontend"
+  - Label: "Laravel + Blade"
+    Description: "PHP Laravel with traditional Blade templates and Alpine.js"
+  - Label: "I have other preferences"
     Description: "I'll specify my preferred languages/frameworks"
 ```
+
+**After user selects a Laravel option:**
+1. Read the corresponding stack file from the `stacks/` directory (relative to autonomous-coding root):
+   - Laravel + React: `stacks/laravel-react.md`
+   - Laravel + Vue: `stacks/laravel-vue.md`
+   - Laravel + Blade: `stacks/laravel-blade.md`
+2. Note the `<installation_commands>` section - this will be included in the generated spec
+3. Note the `<mcp_servers>` section - this will configure MCP servers for the project
 
 **For Detailed Mode users**, ask specific tech questions about frontend, backend, database, etc.
 
@@ -368,25 +382,40 @@ Create a new file using this XML structure:
   </overview>
 
   <technology_stack>
+    <stack_type>[nodejs-default | laravel-react | laravel-vue | laravel-blade]</stack_type>
     <frontend>
-      <framework>[Framework]</framework>
-      <styling>[Styling solution]</styling>
+      <framework>[Framework - React, Vue, or Blade]</framework>
+      <styling>[Styling solution - Tailwind CSS]</styling>
       [Additional frontend config]
     </frontend>
     <backend>
-      <runtime>[Runtime]</runtime>
-      <database>[Database]</database>
+      <runtime>[Runtime - Node.js or PHP]</runtime>
+      <framework>[Framework - Express or Laravel]</framework>
+      <database>[Database - SQLite]</database>
       [Additional backend config]
     </backend>
     <communication>
-      <api>[API style]</api>
+      <api>[API style - REST or Inertia]</api>
       [Additional communication config]
     </communication>
   </technology_stack>
 
+  <!-- Installation commands from stack file (if Laravel) or empty for Node.js -->
+  <installation_commands>
+    [Copy from stack file's <installation_commands> section]
+    [For Node.js default, leave empty - agent builds from scratch]
+  </installation_commands>
+
+  <!-- MCP server configuration from stack file (if Laravel) or empty for Node.js -->
+  <mcp_servers>
+    [Copy JSON from stack file's <mcp_servers> section]
+    [For Node.js default, use: {}]
+  </mcp_servers>
+
   <prerequisites>
     <environment_setup>
-      [Setup requirements]
+      [For Laravel: PHP 8.2+, Composer, Node.js 18+, npm]
+      [For Node.js: Node.js 18+, npm]
     </environment_setup>
   </prerequisites>
 

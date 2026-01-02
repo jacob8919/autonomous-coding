@@ -9,7 +9,59 @@ Start by reading `app_spec.txt` in your working directory. This file contains
 the complete specification for what you need to build. Read it carefully
 before proceeding.
 
-### CRITICAL FIRST TASK: Create Features
+### TASK: Execute Installation Commands (If Present)
+
+Check `app_spec.txt` for the `<installation_commands>` section.
+
+**If installation commands exist (Laravel projects):**
+1. Execute each command in the `<installation_commands>` section in order
+2. Wait for each command to complete before running the next
+3. Handle any errors gracefully (e.g., if php/composer is not installed, note in progress file)
+4. Verify the installation succeeded by checking for expected files/directories
+
+**Example for Laravel + React:**
+```bash
+# These commands come from <installation_commands> in app_spec.txt:
+composer create-project laravel/laravel . --no-interaction
+composer require laravel/breeze --dev
+php artisan breeze:install react --no-interaction
+npm install
+php artisan key:generate
+php artisan migrate --force
+composer require laravel/boost --dev
+php artisan boost:install
+```
+
+**If no installation commands exist (Node.js projects):**
+Skip this step and continue with normal project creation from scratch.
+
+### TASK: Configure MCP Servers (If Present)
+
+Check `app_spec.txt` for the `<mcp_servers>` section.
+
+**If MCP server configuration exists (Laravel projects):**
+1. Create the `.claude` directory if it doesn't exist: `mkdir -p .claude`
+2. Write the MCP server configuration to `.claude/mcp_servers.json`:
+   - Extract the JSON content from the `<mcp_servers>` section
+   - Write it to `.claude/mcp_servers.json`
+
+**Example `.claude/mcp_servers.json` for Laravel:**
+```json
+{
+    "laravel-boost": {
+        "command": "php",
+        "args": ["artisan", "boost:mcp"]
+    }
+}
+```
+
+This configuration enables Laravel Boost MCP tools (search-docs, tinker, database-query, etc.)
+for future agent sessions.
+
+**If no MCP configuration exists:**
+Skip this step.
+
+### CRITICAL TASK: Create Features
 
 Based on `app_spec.txt`, create features using the feature_create_bulk tool. The features are stored in a SQLite database,
 which is the single source of truth for what needs to be built.
@@ -453,7 +505,7 @@ Features can ONLY be marked as passing (via the `feature_mark_passing` tool with
 Never remove features, never edit descriptions, never modify testing steps.
 This ensures no functionality is missed.
 
-### SECOND TASK: Create init.sh
+### TASK: Create init.sh
 
 Create a script called `init.sh` that future agents can use to quickly
 set up and run the development environment. The script should:
@@ -462,6 +514,57 @@ set up and run the development environment. The script should:
 2. Start any necessary servers or services
 3. Print helpful information about how to access the running application
 
+Base the script on the technology stack specified in `app_spec.txt`.
+
+**For Laravel projects, use this template:**
+```bash
+#!/bin/bash
+# Laravel development environment setup
+
+# Ensure dependencies are installed
+if [ ! -d "vendor" ]; then
+    composer install
+fi
+
+if [ ! -d "node_modules" ]; then
+    npm install
+fi
+
+# Ensure .env exists
+if [ ! -f ".env" ]; then
+    cp .env.example .env
+    php artisan key:generate
+fi
+
+# Ensure database exists (SQLite)
+if [ ! -f "database/database.sqlite" ]; then
+    touch database/database.sqlite
+    php artisan migrate --force
+fi
+
+# Start Laravel development server in background
+php artisan serve &
+LARAVEL_PID=$!
+
+# Start Vite for frontend assets
+npm run dev &
+VITE_PID=$!
+
+echo ""
+echo "==================================="
+echo "  Laravel Development Server"
+echo "==================================="
+echo "  Backend:  http://localhost:8000"
+echo "  Frontend: http://localhost:5173"
+echo ""
+echo "  Press Ctrl+C to stop servers"
+echo "==================================="
+
+# Wait for either process to exit
+wait $LARAVEL_PID $VITE_PID
+```
+
+**For Node.js projects:**
 Base the script on the technology stack specified in `app_spec.txt`.
 
 ### THIRD TASK: Initialize Git

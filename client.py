@@ -16,6 +16,41 @@ from claude_agent_sdk.types import HookMatcher
 from security import bash_security_hook
 
 
+def get_project_mcp_servers(project_dir: Path) -> dict:
+    """
+    Load project-specific MCP server configuration.
+
+    Looks for .claude/mcp_servers.json in the project directory.
+    Returns empty dict if file doesn't exist or is invalid.
+
+    Args:
+        project_dir: The project directory to check
+
+    Returns:
+        Dictionary of MCP server configurations
+    """
+    mcp_config_path = project_dir / ".claude" / "mcp_servers.json"
+
+    if not mcp_config_path.exists():
+        return {}
+
+    try:
+        with open(mcp_config_path, "r") as f:
+            config = json.load(f)
+
+        # Set cwd for each server to project directory (needed for artisan)
+        for server_name, server_config in config.items():
+            if "cwd" not in server_config:
+                server_config["cwd"] = str(project_dir.resolve())
+
+        print(f"[MCP] Loaded project MCP servers: {list(config.keys())}")
+        return config
+
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"[MCP] Warning: Could not load MCP config from {mcp_config_path}: {e}")
+        return {}
+
+
 # Feature MCP tools for feature/test management
 FEATURE_MCP_TOOLS = [
     "mcp__features__feature_get_stats",
@@ -123,11 +158,28 @@ def create_client(project_dir: Path, model: str):
     with open(settings_file, "w") as f:
         json.dump(security_settings, f, indent=2)
 
+    # Base MCP servers (always included)
+    base_mcp_servers = {
+        "playwright": {"command": "npx", "args": ["@playwright/mcp@latest", "--viewport-size", "1280x720"]},
+        "features": {
+            "command": sys.executable,  # Use the same Python that's running this script
+            "args": ["-m", "mcp_server.feature_mcp"],
+            "env": {
+                "PROJECT_DIR": str(project_dir.resolve()),
+                "PYTHONPATH": str(Path(__file__).parent.resolve()),
+            },
+        },
+    }
+
+    # Load and merge project-specific MCP servers (e.g., Laravel Boost)
+    project_mcp_servers = get_project_mcp_servers(project_dir)
+    mcp_servers = {**base_mcp_servers, **project_mcp_servers}
+
     print(f"Created security settings at {settings_file}")
     print("   - Sandbox enabled (OS-level bash isolation)")
     print(f"   - Filesystem restricted to: {project_dir.resolve()}")
     print("   - Bash commands restricted to allowlist (see security.py)")
-    print("   - MCP servers: playwright (browser), features (database)")
+    print(f"   - MCP servers: {', '.join(mcp_servers.keys())}")
     print("   - Project settings enabled (skills, commands, CLAUDE.md)")
     print()
 
@@ -142,17 +194,7 @@ def create_client(project_dir: Path, model: str):
                 *PLAYWRIGHT_TOOLS,
                 *FEATURE_MCP_TOOLS,
             ],
-            mcp_servers={
-                "playwright": {"command": "npx", "args": ["@playwright/mcp@latest", "--viewport-size", "1280x720"]},
-                "features": {
-                    "command": sys.executable,  # Use the same Python that's running this script
-                    "args": ["-m", "mcp_server.feature_mcp"],
-                    "env": {
-                        "PROJECT_DIR": str(project_dir.resolve()),
-                        "PYTHONPATH": str(Path(__file__).parent.resolve()),
-                    },
-                },
-            },
+            mcp_servers=mcp_servers,
             hooks={
                 "PreToolUse": [
                     HookMatcher(matcher="Bash", hooks=[bash_security_hook]),

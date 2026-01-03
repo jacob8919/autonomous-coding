@@ -61,6 +61,16 @@ FEATURE_MCP_TOOLS = [
     "mcp__features__feature_create_bulk",
 ]
 
+# Laravel Boost MCP tools for Laravel development
+LARAVEL_BOOST_TOOLS = [
+    "mcp__laravel-boost__list-artisan-commands",
+    "mcp__laravel-boost__get-absolute-url",
+    "mcp__laravel-boost__tinker",
+    "mcp__laravel-boost__database-query",
+    "mcp__laravel-boost__browser-logs",
+    "mcp__laravel-boost__search-docs",
+]
+
 # Playwright MCP tools for browser automation
 PLAYWRIGHT_TOOLS = [
     # Core navigation & screenshots
@@ -146,6 +156,8 @@ def create_client(project_dir: Path, model: str):
                 *PLAYWRIGHT_TOOLS,
                 # Allow Feature MCP tools for feature management
                 *FEATURE_MCP_TOOLS,
+                # Allow Laravel Boost MCP tools for Laravel development
+                *LARAVEL_BOOST_TOOLS,
             ],
         },
     }
@@ -193,6 +205,7 @@ def create_client(project_dir: Path, model: str):
                 *BUILTIN_TOOLS,
                 *PLAYWRIGHT_TOOLS,
                 *FEATURE_MCP_TOOLS,
+                *LARAVEL_BOOST_TOOLS,
             ],
             mcp_servers=mcp_servers,
             hooks={

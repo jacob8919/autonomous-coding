@@ -65,14 +65,24 @@ FEATURE_MCP_TOOLS = [
     "mcp__features__feature_search",
 ]
 
-# Laravel Boost MCP tools for Laravel development
+# Laravel Boost MCP tools for Laravel development (all 16 tools)
 LARAVEL_BOOST_TOOLS = [
-    "mcp__laravel-boost__list-artisan-commands",
-    "mcp__laravel-boost__get-absolute-url",
-    "mcp__laravel-boost__tinker",
-    "mcp__laravel-boost__database-query",
+    "mcp__laravel-boost__application-info",
     "mcp__laravel-boost__browser-logs",
+    "mcp__laravel-boost__database-connections",
+    "mcp__laravel-boost__database-query",
+    "mcp__laravel-boost__database-schema",
+    "mcp__laravel-boost__get-absolute-url",
+    "mcp__laravel-boost__get-config",
+    "mcp__laravel-boost__last-error",
+    "mcp__laravel-boost__list-artisan-commands",
+    "mcp__laravel-boost__list-available-config-keys",
+    "mcp__laravel-boost__list-available-env-vars",
+    "mcp__laravel-boost__list-routes",
+    "mcp__laravel-boost__read-log-entries",
+    "mcp__laravel-boost__report-feedback",
     "mcp__laravel-boost__search-docs",
+    "mcp__laravel-boost__tinker",
 ]
 
 # Playwright MCP tools for browser automation

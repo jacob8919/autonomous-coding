@@ -16,8 +16,10 @@ from progress import print_session_header, print_progress_summary, has_features
 from prompts import (
     get_initializer_prompt,
     get_coding_prompt,
+    get_enhancement_prompt,
     copy_spec_to_project,
     has_project_prompts,
+    has_enhancement_spec,
 )
 
 
@@ -126,10 +128,11 @@ async def run_autonomous_agent(
     # Create project directory
     project_dir.mkdir(parents=True, exist_ok=True)
 
-    # Check if this is a fresh start or continuation
+    # Determine agent type: initializer, enhancement, or coding
     # Uses has_features() which checks if the database actually has features,
     # not just if the file exists (empty db should still trigger initializer)
     is_first_run = not has_features(project_dir)
+    is_enhancement_run = not is_first_run and has_enhancement_spec(project_dir)
 
     if is_first_run:
         print("Fresh start - will use initializer agent")
@@ -142,6 +145,15 @@ async def run_autonomous_agent(
         print()
         # Copy the app spec into the project directory for the agent to read
         copy_spec_to_project(project_dir)
+    elif is_enhancement_run:
+        print("Enhancement spec detected - will use enhancement agent")
+        print()
+        print("=" * 70)
+        print("  The enhancement agent will add new features to the database.")
+        print("  After this session, the coding agent will implement them.")
+        print("=" * 70)
+        print()
+        print_progress_summary(project_dir)
     else:
         print("Continuing existing project")
         print_progress_summary(project_dir)
@@ -169,6 +181,9 @@ async def run_autonomous_agent(
         if is_first_run:
             prompt = get_initializer_prompt(project_dir)
             is_first_run = False  # Only use initializer once
+        elif is_enhancement_run:
+            prompt = get_enhancement_prompt(project_dir)
+            is_enhancement_run = False  # Only use enhancement once
         else:
             prompt = get_coding_prompt(project_dir)
 

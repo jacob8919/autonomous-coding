@@ -3,6 +3,7 @@ JSON to SQLite Migration
 ========================
 
 Automatically migrates existing feature_list.json files to SQLite database.
+Also handles schema migrations for new columns.
 """
 
 import json
@@ -11,9 +12,55 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker, Session
 
 from api.database import Feature
+
+
+def migrate_schema(session_maker: sessionmaker) -> None:
+    """
+    Add new columns to existing databases if they don't exist.
+
+    This handles the migration for enhancement tracking fields:
+    - source: "initializer" | "enhancement"
+    - added_at: timestamp when feature was added
+    - batch_id: UUID for grouping features added together
+    """
+    session: Session = session_maker()
+    try:
+        # Check if columns exist by querying pragma
+        result = session.execute(text("PRAGMA table_info(features)"))
+        columns = {row[1] for row in result.fetchall()}
+
+        # Add source column if missing
+        if "source" not in columns:
+            session.execute(
+                text("ALTER TABLE features ADD COLUMN source VARCHAR(50) DEFAULT 'initializer' NOT NULL")
+            )
+            print("Added 'source' column to features table")
+
+        # Add added_at column if missing
+        if "added_at" not in columns:
+            # Use current timestamp as default for existing rows
+            session.execute(
+                text("ALTER TABLE features ADD COLUMN added_at DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL")
+            )
+            print("Added 'added_at' column to features table")
+
+        # Add batch_id column if missing
+        if "batch_id" not in columns:
+            session.execute(
+                text("ALTER TABLE features ADD COLUMN batch_id VARCHAR(36)")
+            )
+            print("Added 'batch_id' column to features table")
+
+        session.commit()
+    except Exception as e:
+        session.rollback()
+        print(f"Schema migration error (may be safe to ignore): {e}")
+    finally:
+        session.close()
 
 
 def migrate_json_to_sqlite(

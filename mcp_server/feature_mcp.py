@@ -30,7 +30,7 @@ from sqlalchemy.sql.expression import func
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from api.database import Feature, create_database
-from api.migration import migrate_json_to_sqlite
+from api.migration import migrate_json_to_sqlite, migrate_schema
 
 # Configuration from environment
 PROJECT_DIR = Path(os.environ.get("PROJECT_DIR", ".")).resolve()
@@ -81,8 +81,9 @@ async def server_lifespan(server: FastMCP):
     # Initialize database
     _engine, _session_maker = create_database(PROJECT_DIR)
 
-    # Run migration if needed (converts legacy JSON to SQLite)
-    migrate_json_to_sqlite(PROJECT_DIR, _session_maker)
+    # Run migrations if needed
+    migrate_json_to_sqlite(PROJECT_DIR, _session_maker)  # Legacy JSON to SQLite
+    migrate_schema(_session_maker)  # Add new columns to existing tables
 
     yield
 
@@ -190,6 +191,127 @@ def feature_get_for_regression(
 
 
 @mcp.tool()
+def feature_get_all_categories() -> str:
+    """Get all unique feature categories currently in the database.
+
+    Returns a list of category names to help maintain consistency
+    when adding new features. Use this to understand what categories
+    already exist before creating new features.
+
+    Returns:
+        JSON with: categories (list of strings), count (int)
+    """
+    session = get_session()
+    try:
+        categories = (
+            session.query(Feature.category)
+            .distinct()
+            .order_by(Feature.category.asc())
+            .all()
+        )
+        category_list = [c[0] for c in categories]
+
+        return json.dumps({
+            "categories": category_list,
+            "count": len(category_list)
+        }, indent=2)
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def feature_get_summary() -> str:
+    """Get a summary of all features grouped by category.
+
+    Returns category counts and passing status to help understand
+    existing coverage without loading all feature details.
+    This is more context-efficient than loading all features.
+
+    Returns:
+        JSON with: categories (list of {name, total, passing}), overall (total, passing)
+    """
+    session = get_session()
+    try:
+        from sqlalchemy import case
+
+        # Get counts by category
+        category_stats = (
+            session.query(
+                Feature.category,
+                func.count(Feature.id).label('total'),
+                func.sum(case((Feature.passes == True, 1), else_=0)).label('passing')
+            )
+            .group_by(Feature.category)
+            .order_by(Feature.category.asc())
+            .all()
+        )
+
+        result = {
+            "categories": [
+                {
+                    "name": cat,
+                    "total": int(total),
+                    "passing": int(passing)
+                }
+                for cat, total, passing in category_stats
+            ],
+            "overall": {
+                "total": sum(r[1] for r in category_stats),
+                "passing": sum(r[2] for r in category_stats)
+            }
+        }
+        return json.dumps(result, indent=2)
+    finally:
+        session.close()
+
+
+@mcp.tool()
+def feature_search(
+    query: Annotated[str, Field(description="Search query for feature names/descriptions")],
+    limit: Annotated[int, Field(default=10, ge=1, le=50, description="Maximum results to return")] = 10
+) -> str:
+    """Search existing features by name or description.
+
+    Helps check if a feature already exists before adding duplicates.
+    Use this before creating new features to avoid redundancy.
+
+    Args:
+        query: Search term to match against feature names and descriptions
+        limit: Maximum number of results to return (1-50, default 10)
+
+    Returns:
+        JSON with: features (list of {id, name, category, passes}), count (int)
+    """
+    session = get_session()
+    try:
+        features = (
+            session.query(Feature)
+            .filter(
+                (Feature.name.ilike(f"%{query}%")) |
+                (Feature.description.ilike(f"%{query}%"))
+            )
+            .order_by(Feature.priority.asc())
+            .limit(limit)
+            .all()
+        )
+
+        return json.dumps({
+            "features": [
+                {
+                    "id": f.id,
+                    "name": f.name,
+                    "category": f.category,
+                    "passes": f.passes
+                }
+                for f in features
+            ],
+            "count": len(features)
+        }, indent=2)
+    finally:
+        session.close()
+
+
+@mcp.tool()
 def feature_mark_passing(
     feature_id: Annotated[int, Field(description="The ID of the feature to mark as passing", ge=1)]
 ) -> str:
@@ -273,15 +395,18 @@ def feature_skip(
 
 @mcp.tool()
 def feature_create_bulk(
-    features: Annotated[list[dict], Field(description="List of features to create, each with category, name, description, and steps")]
+    features: Annotated[list[dict], Field(description="List of features to create, each with category, name, description, and steps")],
+    priority_mode: Annotated[str, Field(default="append", description="Priority mode: 'append' (after existing) or 'prepend' (before pending)")] = "append",
+    source: Annotated[str, Field(default="initializer", description="Source of features: 'initializer' or 'enhancement'")] = "initializer",
+    batch_id: Annotated[str, Field(default=None, description="Optional UUID to group features added together")] = None
 ) -> str:
     """Create multiple features in a single operation.
 
-    Features are assigned sequential priorities based on their order.
+    Features are assigned sequential priorities based on their order and priority_mode.
     All features start with passes=false.
 
-    This is typically used by the initializer agent to set up the initial
-    feature list from the app specification.
+    This is used by the initializer agent to set up the initial feature list,
+    and by the enhancement agent to add new features to existing projects.
 
     Args:
         features: List of features to create, each with:
@@ -289,15 +414,37 @@ def feature_create_bulk(
             - name (str): Feature name
             - description (str): Detailed description
             - steps (list[str]): Implementation/test steps
+        priority_mode: How to assign priorities:
+            - "append": New features get lowest priority (worked on last)
+            - "prepend": New features get highest priority (worked on first)
+        source: Where features came from ("initializer" or "enhancement")
+        batch_id: Optional UUID to group features that were added together
 
     Returns:
-        JSON with: created (int) - number of features created
+        JSON with: created (int), priority_mode (str), start_priority (int)
     """
     session = get_session()
     try:
-        # Get the starting priority
-        max_priority_result = session.query(Feature.priority).order_by(Feature.priority.desc()).first()
-        start_priority = (max_priority_result[0] + 1) if max_priority_result else 1
+        # Calculate starting priority based on mode
+        if priority_mode == "prepend":
+            # Get minimum priority of pending (non-passing) features
+            min_pending = (
+                session.query(Feature.priority)
+                .filter(Feature.passes == False)
+                .order_by(Feature.priority.asc())
+                .first()
+            )
+            if min_pending:
+                # Start before the first pending feature
+                start_priority = min_pending[0] - len(features)
+            else:
+                # No pending features, use normal append logic
+                max_priority_result = session.query(Feature.priority).order_by(Feature.priority.desc()).first()
+                start_priority = (max_priority_result[0] + 1) if max_priority_result else 1
+        else:
+            # Append mode: add after all existing features
+            max_priority_result = session.query(Feature.priority).order_by(Feature.priority.desc()).first()
+            start_priority = (max_priority_result[0] + 1) if max_priority_result else 1
 
         created_count = 0
         for i, feature_data in enumerate(features):
@@ -314,13 +461,21 @@ def feature_create_bulk(
                 description=feature_data["description"],
                 steps=feature_data["steps"],
                 passes=False,
+                source=source,
+                batch_id=batch_id,
             )
             session.add(db_feature)
             created_count += 1
 
         session.commit()
 
-        return json.dumps({"created": created_count}, indent=2)
+        return json.dumps({
+            "created": created_count,
+            "priority_mode": priority_mode,
+            "start_priority": start_priority,
+            "source": source,
+            "batch_id": batch_id
+        }, indent=2)
     except Exception as e:
         session.rollback()
         return json.dumps({"error": str(e)})

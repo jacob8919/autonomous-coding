@@ -59,6 +59,10 @@ FEATURE_MCP_TOOLS = [
     "mcp__features__feature_mark_passing",
     "mcp__features__feature_skip",
     "mcp__features__feature_create_bulk",
+    # Enhancement discovery tools
+    "mcp__features__feature_get_all_categories",
+    "mcp__features__feature_get_summary",
+    "mcp__features__feature_search",
 ]
 
 # Laravel Boost MCP tools for Laravel development

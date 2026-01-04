@@ -18,6 +18,7 @@ from prompts import (
     has_project_prompts,
     get_project_prompts_dir,
 )
+from progress import has_features, count_passing_tests
 
 
 # Directory containing generated projects
@@ -76,6 +77,7 @@ def display_menu(projects: list[str]) -> None:
 
     if projects:
         print("[2] Continue existing project")
+        print("[3] Add features to existing project")
 
     print("[q] Quit")
     print()
@@ -331,6 +333,65 @@ def run_agent(project_name: str) -> None:
         print("\n\nAgent interrupted. Run again to resume.")
 
 
+def add_features_flow(project_name: str) -> None:
+    """
+    Run the add-features workflow for an existing project.
+
+    Launches Claude Code with /add-features command to create an enhancement spec.
+    """
+    project_dir = GENERATIONS_DIR / project_name
+
+    # Validate project has existing features
+    if not has_features(project_dir):
+        print(f"\nError: Project '{project_name}' has no features yet.")
+        print("Please run 'Continue existing project' first to let the initializer create features.")
+        input("\nPress Enter to continue...")
+        return
+
+    # Show current progress
+    passing, total = count_passing_tests(project_dir)
+    percentage = (passing / total) * 100 if total > 0 else 0
+
+    print("\n" + "=" * 50)
+    print("  Add Features to Existing Project")
+    print("=" * 50)
+    print(f"\nProject: {project_name}")
+    print(f"Current status: {passing}/{total} features passing ({percentage:.1f}%)")
+    print(f"\nProject directory: {project_dir}")
+    print("\nLaunching Claude Code for interactive feature addition...")
+    print("Define the new features you want to add.")
+    print("Exit Claude Code (Ctrl+C or /exit) when finished.\n")
+
+    try:
+        # Launch Claude Code with /add-features command
+        subprocess.run(
+            ["claude", f"/add-features {project_dir}"],
+            check=False,
+            cwd=str(Path(__file__).parent)
+        )
+
+        # Check if enhancement spec was created
+        enhancement_spec = project_dir / "prompts" / "enhancement_spec.txt"
+        if enhancement_spec.exists():
+            print("\n" + "-" * 50)
+            print("Enhancement spec created successfully!")
+            print("\nTo add the new features, select 'Continue existing project'")
+            print("from the main menu. The Enhancement Agent will process the spec.")
+        else:
+            print("\n" + "-" * 50)
+            print("No enhancement spec was created.")
+            print("Run /add-features again when ready to add new features.")
+
+    except FileNotFoundError:
+        print("\nError: 'claude' command not found.")
+        print("Make sure Claude Code CLI is installed:")
+        print("  npm install -g @anthropic-ai/claude-code")
+    except KeyboardInterrupt:
+        print("\n\nFeature addition cancelled.")
+
+    input("\nPress Enter to continue...")
+
+
 def main() -> None:
     """Main entry point."""
     # Ensure we're in the right directory
@@ -357,6 +418,12 @@ def main() -> None:
             selected = get_project_choice(projects)
             if selected:
                 run_agent(selected)
+
+        elif choice == '3' and projects:
+            display_projects(projects)
+            selected = get_project_choice(projects)
+            if selected:
+                add_features_flow(selected)
 
         else:
             print("Invalid option. Please try again.")

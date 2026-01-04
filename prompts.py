@@ -75,6 +75,38 @@ def get_coding_prompt(project_dir: Path | None = None) -> str:
     return load_prompt("coding_prompt", project_dir)
 
 
+def get_enhancement_prompt(project_dir: Path | None = None) -> str:
+    """Load the enhancement agent prompt (project-specific if available)."""
+    return load_prompt("enhancement_prompt", project_dir)
+
+
+def has_enhancement_spec(project_dir: Path) -> bool:
+    """
+    Check if an enhancement specification exists for the project.
+
+    The enhancement spec is created by the /add-features command and signals
+    that the Enhancement Agent should run before the Coding Agent.
+
+    Args:
+        project_dir: The project directory
+
+    Returns:
+        True if enhancement_spec.txt exists and contains valid content
+    """
+    project_prompts = get_project_prompts_dir(project_dir)
+    enhancement_spec = project_prompts / "enhancement_spec.txt"
+
+    if not enhancement_spec.exists():
+        return False
+
+    # Check for valid enhancement spec content
+    try:
+        content = enhancement_spec.read_text(encoding="utf-8")
+        return "<enhancement_specification>" in content
+    except (OSError, PermissionError):
+        return False
+
+
 def get_app_spec(project_dir: Path) -> str:
     """
     Load the app spec from the project.

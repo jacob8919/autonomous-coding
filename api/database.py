@@ -5,10 +5,11 @@ Database Models and Connection
 SQLite database schema for feature storage using SQLAlchemy.
 """
 
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-from sqlalchemy import Boolean, Column, Integer, String, Text, create_engine
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.types import JSON
@@ -29,6 +30,11 @@ class Feature(Base):
     steps = Column(JSON, nullable=False)  # Stored as JSON array
     passes = Column(Boolean, default=False, index=True)
 
+    # Enhancement tracking fields
+    source = Column(String(50), nullable=False, default="initializer")  # "initializer" | "enhancement"
+    added_at = Column(DateTime, nullable=False, default=datetime.utcnow)
+    batch_id = Column(String(36), nullable=True)  # UUID for grouping features added together
+
     def to_dict(self) -> dict:
         """Convert feature to dictionary for JSON serialization."""
         return {
@@ -39,6 +45,9 @@ class Feature(Base):
             "description": self.description,
             "steps": self.steps,
             "passes": self.passes,
+            "source": self.source,
+            "added_at": self.added_at.isoformat() if self.added_at else None,
+            "batch_id": self.batch_id,
         }
 
 

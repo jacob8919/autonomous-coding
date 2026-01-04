@@ -1,20 +1,23 @@
 # Autonomous Coding Agent
 
-A long-running autonomous coding agent powered by the Claude Agent SDK. This tool can build complete applications over multiple sessions using a two-agent pattern (initializer + coding agent).
+A long-running autonomous coding agent powered by the Claude Agent SDK. Builds complete applications over multiple sessions using a three-agent pattern with support for multiple technology stacks.
 
-## Video Walkthrough
+> Based on [leonvanzyl's autonomous-coding](https://github.com/leonvanzyl/autonomous-coding)
 
-[![Watch the video](https://img.youtube.com/vi/YW09hhnVqNM/maxresdefault.jpg)](https://youtu.be/YW09hhnVqNM)
+## Features
 
-> **[Watch the setup and usage guide →](https://youtu.be/YW09hhnVqNM)**
+- **Multi-session development** - Maintains progress across context windows via SQLite database and git
+- **Three agent types** - Initializer, Enhancement, and Coding agents for different phases
+- **Multiple tech stacks** - Node.js/React (default) or Laravel with React/Vue/Blade
+- **Post-build enhancements** - Add new features to existing projects without starting over
+- **Browser automation testing** - Playwright MCP for end-to-end verification
+- **Security sandboxing** - Restricted filesystem and command allowlist
 
 ---
 
 ## Prerequisites
 
 ### Claude Code CLI (Required)
-
-This project requires the Claude Code CLI to be installed. Install it using one of these methods:
 
 **macOS / Linux:**
 ```bash
@@ -28,10 +31,14 @@ irm https://claude.ai/install.ps1 | iex
 
 ### Authentication
 
-You need one of the following:
-
 - **Claude Pro/Max Subscription** - Use `claude login` to authenticate (recommended)
 - **Anthropic API Key** - Pay-per-use from https://console.anthropic.com/
+
+### For Laravel Projects (Optional)
+
+- PHP 8.2+
+- Composer
+- Node.js 18+
 
 ---
 
@@ -40,7 +47,7 @@ You need one of the following:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-repo/autonomous-coding.git
+git clone https://github.com/jacob8919/autonomous-coding.git
 cd autonomous-coding
 ```
 
@@ -58,49 +65,113 @@ start.bat
 
 The start script will:
 1. Check if Claude CLI is installed
-2. Check if you're authenticated (prompt to run `claude login` if not)
-3. Create a Python virtual environment
+2. Check authentication (prompt for `claude login` if needed)
+3. Create Python virtual environment
 4. Install dependencies
 5. Launch the main menu
 
-### 3. Create or Continue a Project
+### 3. Main Menu Options
 
-You'll see a menu with options to:
-- **Create new project** - Start a fresh project with AI-assisted spec generation
-- **Continue existing project** - Resume work on a previous project
+```
+[1] Create new project          - Start fresh with AI-assisted spec generation
+[2] Continue existing project   - Resume work on a previous project
+[3] Add features to existing    - Add new features after initial build
+[q] Quit
+```
 
-For new projects, you can use the built-in `/create-spec` command to interactively create your app specification with Claude's help.
+---
+
+## Technology Stacks
+
+When creating a new project, you can choose from:
+
+| Stack | Frontend | Backend | Database |
+|-------|----------|---------|----------|
+| **Node.js + React** (default) | React | Express | SQLite |
+| **Laravel + React** | React/Inertia | Laravel | SQLite |
+| **Laravel + Vue** | Vue/Inertia | Laravel | SQLite |
+| **Laravel + Blade** | Blade/Alpine.js | Laravel | SQLite |
+
+Laravel stacks include automatic setup via Composer and Laravel Breeze, plus Laravel Boost MCP integration.
 
 ---
 
 ## How It Works
 
-### Two-Agent Pattern
+### Three-Agent Pattern
 
-1. **Initializer Agent (First Session):** Reads your app specification, creates a `feature_list.json` with test cases, sets up the project structure, and initializes git.
-
-2. **Coding Agent (Subsequent Sessions):** Picks up where the previous session left off, implements features one by one, and marks them as passing in `feature_list.json`.
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    AUTONOMOUS CODING WORKFLOW                    │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  [1] INITIALIZER AGENT (First Session)                          │
+│      • Reads app_spec.txt                                        │
+│      • Creates features in SQLite database                       │
+│      • Sets up project structure                                 │
+│      • Initializes git repository                                │
+│                          ↓                                       │
+│  [2] CODING AGENT (Subsequent Sessions)                          │
+│      • Gets next feature from database                           │
+│      • Implements feature                                        │
+│      • Tests with browser automation                             │
+│      • Marks feature as passing                                  │
+│      • Commits progress                                          │
+│                          ↓                                       │
+│  [3] ENHANCEMENT AGENT (When adding features)                    │
+│      • Reads enhancement_spec.txt                                │
+│      • Checks for duplicate features                             │
+│      • Adds new features to database                             │
+│      • Returns to Coding Agent                                   │
+│                                                                  │
+└─────────────────────────────────────────────────────────────────┘
+```
 
 ### Session Management
 
 - Each session runs with a fresh context window
-- Progress is persisted via `feature_list.json` and git commits
-- The agent auto-continues between sessions (3 second delay)
-- Press `Ctrl+C` to pause; run the start script again to resume
+- Progress persisted via `features.db` (SQLite) and git commits
+- Agent auto-continues between sessions (3 second delay)
+- Press `Ctrl+C` to pause; run start script again to resume
+
+### Adding Features After Build
+
+Already built a project but need more features? Use menu option **[3]**:
+
+1. Select "Add features to existing project"
+2. Choose your project
+3. Claude Code launches with `/add-features` command
+4. Describe the new features you want
+5. Choose priority (before or after pending features)
+6. Exit and select "Continue existing project"
+7. Enhancement Agent adds features, then Coding Agent implements them
 
 ---
 
-## Important Timing Expectations
+## MCP Servers
 
-> **Note: Building complete applications takes time!**
+The agent uses Model Context Protocol (MCP) servers for extended capabilities:
 
-- **First session (initialization):** The agent generates feature test cases. This takes several minutes and may appear to hang - this is normal.
+### Playwright (Browser Automation)
+- Navigate, click, type, screenshot
+- Form filling and element interaction
+- Console and network monitoring
+- End-to-end feature verification
 
-- **Subsequent sessions:** Each coding iteration can take **5-15 minutes** depending on complexity.
+### Features (Database Management)
+- `feature_get_stats` - Progress statistics
+- `feature_get_next` - Next feature to implement
+- `feature_mark_passing` - Mark feature complete
+- `feature_create_bulk` - Add multiple features
+- `feature_search` - Find existing features
 
-- **Full app:** Building all features typically requires **many hours** of total runtime across multiple sessions.
-
-**Tip:** The feature count in the prompts determines scope. For faster demos, you can modify your app spec to target fewer features (e.g., 20-50 features for a quick demo).
+### Laravel Boost (Laravel Projects Only)
+- `database-schema` - Inspect database structure
+- `list-routes` - View application routes
+- `tinker` - Run Tinker commands
+- `search-docs` - Query Laravel documentation
+- `last-error` - Get recent errors
+- And 11 more tools...
 
 ---
 
@@ -108,100 +179,102 @@ For new projects, you can use the built-in `/create-spec` command to interactive
 
 ```
 autonomous-coding/
-├── start.bat                 # Windows start script
-├── start.sh                  # macOS/Linux start script
-├── start.py                  # Main menu and project management
-├── autonomous_agent_demo.py  # Agent entry point
-├── agent.py                  # Agent session logic
-├── client.py                 # Claude SDK client configuration
-├── security.py               # Bash command allowlist and validation
-├── progress.py               # Progress tracking utilities
-├── prompts.py                # Prompt loading utilities
+├── start.bat / start.sh          # Platform start scripts
+├── start.py                      # Main menu and project management
+├── autonomous_agent_demo.py      # Agent entry point
+├── agent.py                      # Session orchestration
+├── client.py                     # Claude SDK configuration
+├── security.py                   # Command allowlist
+├── prompts.py                    # Prompt loading
+├── progress.py                   # Progress tracking
+├── api/
+│   ├── database.py               # SQLAlchemy models
+│   └── migration.py              # Schema migrations
+├── mcp_server/
+│   └── feature_mcp.py            # Feature management MCP
+├── stacks/                       # Laravel stack configs
+│   ├── laravel-react.md
+│   ├── laravel-vue.md
+│   └── laravel-blade.md
 ├── .claude/
 │   ├── commands/
-│   │   └── create-spec.md    # Interactive spec creation command
-│   └── templates/            # Prompt templates
-├── generations/              # Generated projects go here
-├── requirements.txt          # Python dependencies
-└── .env                      # Optional configuration (N8N webhook)
+│   │   ├── create-spec.md        # /create-spec command
+│   │   └── add-features.md       # /add-features command
+│   └── templates/                # Agent prompt templates
+└── generations/                  # Generated projects
 ```
 
----
-
-## Generated Project Structure
-
-After the agent runs, your project directory will contain:
+### Generated Project Structure
 
 ```
 generations/my_project/
-├── feature_list.json         # Test cases (source of truth)
+├── features.db                   # SQLite database (source of truth)
 ├── prompts/
-│   ├── app_spec.txt          # Your app specification
-│   ├── initializer_prompt.md # First session prompt
-│   └── coding_prompt.md      # Continuation session prompt
-├── init.sh                   # Environment setup script
-├── claude-progress.txt       # Session progress notes
-└── [application files]       # Generated application code
+│   ├── app_spec.txt              # Application specification
+│   ├── initializer_prompt.md     # First session prompt
+│   ├── coding_prompt.md          # Coding session prompt
+│   └── enhancement_spec.txt      # (If adding features)
+├── .claude/
+│   └── mcp_servers.json          # Project MCP config (Laravel)
+├── init.sh                       # Environment setup
+├── claude-progress.txt           # Session notes
+└── [application files]           # Generated code
 ```
 
 ---
 
-## Running the Generated Application
+## Timing Expectations
 
-After the agent completes (or pauses), you can run the generated application:
+| Phase | Duration |
+|-------|----------|
+| **Initialization** | 10-20+ minutes (generating features) |
+| **Each coding session** | 5-15 minutes per feature |
+| **Full application** | Hours across multiple sessions |
 
-```bash
-cd generations/my_project
-
-# Run the setup script created by the agent
-./init.sh
-
-# Or manually (typical for Node.js apps):
-npm install
-npm run dev
-```
-
-The application will typically be available at `http://localhost:3000` or similar.
+The feature count determines scope. Typical ranges:
+- Simple apps: 20-50 features
+- Medium apps: 100-150 features
+- Complex apps: 200+ features
 
 ---
 
 ## Security Model
 
-This project uses a defense-in-depth security approach (see `security.py` and `client.py`):
+Defense-in-depth approach (see `security.py`):
 
-1. **OS-level Sandbox:** Bash commands run in an isolated environment
-2. **Filesystem Restrictions:** File operations restricted to the project directory only
-3. **Bash Allowlist:** Only specific commands are permitted:
-   - File inspection: `ls`, `cat`, `head`, `tail`, `wc`, `grep`
-   - Node.js: `npm`, `node`
-   - Version control: `git`
-   - Process management: `ps`, `lsof`, `sleep`, `pkill` (dev processes only)
+1. **OS-level Sandbox** - Bash commands run isolated
+2. **Filesystem Restrictions** - Operations restricted to project directory
+3. **Command Allowlist** - Only permitted commands execute:
 
-Commands not in the allowlist are blocked by the security hook.
+| Category | Commands |
+|----------|----------|
+| File inspection | `ls`, `cat`, `head`, `tail`, `wc`, `grep` |
+| Node.js | `npm`, `npx`, `node` |
+| PHP/Laravel | `php`, `composer` |
+| Version control | `git` |
+| Process mgmt | `ps`, `lsof`, `sleep`, `pkill` |
 
 ---
 
-## Configuration (Optional)
+## Configuration
 
-### N8N Webhook Integration
+### N8N Webhook (Optional)
 
-The agent can send progress notifications to an N8N webhook. Create a `.env` file:
+Send progress notifications to N8N:
 
 ```bash
-# Optional: N8N webhook for progress notifications
-PROGRESS_N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/your-webhook-id
+# .env file
+PROGRESS_N8N_WEBHOOK_URL=https://your-n8n.com/webhook/id
 ```
 
-When test progress increases, the agent sends:
-
+Payload:
 ```json
 {
   "event": "test_progress",
   "passing": 45,
   "total": 200,
   "percentage": 22.5,
-  "project": "my_project",
-  "timestamp": "2025-01-15T14:30:00.000Z"
+  "project": "my_project"
 }
 ```
 
@@ -209,31 +282,27 @@ When test progress increases, the agent sends:
 
 ## Customization
 
-### Changing the Application
+### Application Specification
+- Use `/create-spec` for interactive creation
+- Or edit `prompts/app_spec.txt` directly
 
-Use the `/create-spec` command when creating a new project, or manually edit the files in your project's `prompts/` directory:
-- `app_spec.txt` - Your application specification
-- `initializer_prompt.md` - Controls feature generation
+### Adding Commands
+- Edit `ALLOWED_COMMANDS` in `security.py`
 
-### Modifying Allowed Commands
-
-Edit `security.py` to add or remove commands from `ALLOWED_COMMANDS`.
+### Custom MCP Servers
+- Add to `.claude/mcp_servers.json` in project directory
 
 ---
 
 ## Troubleshooting
 
-**"Claude CLI not found"**
-Install the Claude Code CLI using the instructions in the Prerequisites section.
-
-**"Not authenticated with Claude"**
-Run `claude login` to authenticate. The start script will prompt you to do this automatically.
-
-**"Appears to hang on first run"**
-This is normal. The initializer agent is generating detailed test cases, which takes significant time. Watch for `[Tool: ...]` output to confirm the agent is working.
-
-**"Command blocked by security hook"**
-The agent tried to run a command not in the allowlist. This is the security system working as intended. If needed, add the command to `ALLOWED_COMMANDS` in `security.py`.
+| Issue | Solution |
+|-------|----------|
+| "Claude CLI not found" | Install CLI per Prerequisites section |
+| "Not authenticated" | Run `claude login` |
+| "Appears to hang on first run" | Normal - generating features takes time. Watch for `[Tool: ...]` output |
+| "Command blocked" | Add to `ALLOWED_COMMANDS` in `security.py` |
+| "Permission denied for MCP tool" | Add tool to `client.py` allowed list |
 
 ---
 
